@@ -1,11 +1,12 @@
 import aiosqlite
-import disnake
+from pathlib import Path
+from settings import database_path
 
 
 class UsersDataBase:
-    def __init__(self):
-        # Путь к файлу базы данных
-        self.name = 'dbs/users.db'
+    def __init__(self, path=None):
+        self.name = str(Path(path) if path else database_path())
+        Path(self.name).parent.mkdir(parents=True, exist_ok=True)
 
     # =============================
     #       СОЗДАНИЕ ТАБЛИЦ
@@ -112,8 +113,10 @@ class UsersDataBase:
         async with aiosqlite.connect(self.name) as db:
             return await (await db.execute("SELECT * FROM close WHERE ping <= ?", (timemut,))).fetchall()
 
-    async def get_user_mut(self, id_user: int):
+    async def get_user_mut(self, id_user: int, guild_id: int | None = None):
         async with aiosqlite.connect(self.name) as db:
+            if guild_id is not None:
+                return await (await db.execute("SELECT * FROM mut WHERE id_user = ? AND guild = ?", (id_user, guild_id))).fetchall()
             return await (await db.execute("SELECT * FROM mut WHERE id_user = ?", (id_user,))).fetchall()
 
     async def get_user_mut_vrem(self, timemut: int):
@@ -344,4 +347,26 @@ class UsersDataBase:
                 int(data.get("channel_close_role_log", 0)),
                 guild_id
             ))
+            await db.commit()
+
+    async def delete_ban_record(self, record_id: int):
+        await self._delete_row("mut", "id", record_id)
+
+    async def save_config_patch(self, guild_id: int, data: dict):
+        """Merge one modal's fields atomically, retaining other fields and defaults."""
+        fields = ("admin", "categori_pod_id", "role_closemod_id", "role_id_evri", "closeban_id", "log", "log2", "CS2", "DOTA2", "VALORANT", "role_otvechclosemod_id", "channel_close_role_log")
+        if not data or any(key not in fields for key in data):
+            raise ValueError("Unknown or empty configuration fields")
+        values = {key: int(value) for key, value in data.items()}
+        if any(value < 0 or value >= 2**64 for value in values.values()):
+            raise ValueError("Invalid Discord ID")
+        async with aiosqlite.connect(self.name) as db:
+            await db.execute("BEGIN IMMEDIATE")
+            existing = await (await db.execute("SELECT id FROM config WHERE guild = ?", (str(guild_id),))).fetchone()
+            if not existing:
+                columns = ", ".join(("guild", *fields))
+                placeholders = ", ".join("?" for _ in range(len(fields) + 1))
+                await db.execute(f"INSERT INTO config ({columns}) VALUES ({placeholders})", (str(guild_id), *(0 for _ in fields)))
+            assignments = ", ".join(f"{key} = ?" for key in values)
+            await db.execute(f"UPDATE config SET {assignments} WHERE guild = ?", (*map(str, values.values()), str(guild_id)))
             await db.commit()

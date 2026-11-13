@@ -82,19 +82,19 @@ class MatchHandler(commands.Cog):
         manage_buttons = [[
             Button(label="Начать матч", style=disnake.ButtonStyle.grey,
                    custom_id=f"Миксы_{inter.user.id}_{guild_id}_{rl_name}",
-                   disabled=True, emoji='<:2_:1208208364191092787>'),
+                   disabled=True, emoji='🔹'),
             Button(label="Кикнуть", style=disnake.ButtonStyle.grey,
                    custom_id=f"кикнуть_{inter.user.id}_{guild_id}_{rl_name}",
-                   emoji='<:emoji_22:1410623911896551484>'),
+                   emoji='🔹'),
             Button(label="Забанить", style=disnake.ButtonStyle.grey,
                    custom_id=f"Closeban_100_{guild_id}",
-                   emoji='<:image_20250828_191944:1410712955330363585>')],
+                   emoji='🔹')],
             [Button(label="Управление", style=disnake.ButtonStyle.grey,
                    custom_id=f"руслан_{inter.user.id}_{guild_id}_{rl_name}",
-                   emoji='<:settings:1410714376733851690>'),
+                   emoji='🔹'),
             Button(label="Удалить матч", style=disnake.ButtonStyle.grey,
                    custom_id=f"удалить_{inter.user.id}_{guild_id}",
-                   emoji='<:delete:1410714542291554325>')
+                   emoji='🔹')
         ]]
         await inter.edit_original_response(embed=manage_embed, components=manage_buttons)
 

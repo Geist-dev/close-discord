@@ -86,19 +86,19 @@ class RegistrationHandler(commands.Cog):
         return [[
             disnake.ui.Button(label="Начать матч", style=disnake.ButtonStyle.grey,
                               custom_id=f"{game_type}_{user_id}_{guild_id}_{rl_name}",
-                              emoji='<:2_:1208208364191092787>'),
+                              emoji='🔹'),
             disnake.ui.Button(label="Кикнуть", style=disnake.ButtonStyle.grey,
                               custom_id=f"кикнуть_{user_id}_{guild_id}_{rl_name}",
-                              emoji='<:emoji_22:1410623911896551484>'),
+                              emoji='🔹'),
             disnake.ui.Button(label="Забанить", style=disnake.ButtonStyle.grey,
-                              custom_id=f"Closeban_100_{guild_id}" if rl_name != "DOTA2" else "Closeban_100",
-                              emoji='<:image_20250828_191944:1410712955330363585>')],
+                              custom_id=f"Closeban_100_{guild_id}",
+                              emoji='🔹')],
             [disnake.ui.Button(label="️Удалить матч", style=disnake.ButtonStyle.grey,
                               custom_id=f"удалить_{user_id}_{guild_id}",
-                              emoji='<:delete:1410714542291554325>'),
+                              emoji='🔹'),
              disnake.ui.Button(label="Управление", style=disnake.ButtonStyle.grey,
                               custom_id=f"миша_{user_id}_{guild_id}_{rl_name}",
-                              emoji='<:settings:1410714376733851690>')
+                              emoji='🔹')
         ]]
 
 

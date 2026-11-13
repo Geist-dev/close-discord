@@ -1,149 +1,114 @@
-# cogs/closeban.py
-import time
+"""Closeban controls with per-guild authorization and recoverable expiry."""
+import logging
+import re
+from time import time
+
 import disnake
 from disnake.ext import commands
-from disnake.ui import TextInput, Modal
-from disnake import TextInputStyle
+
 from utils.databases import UsersDataBase
 
+log = logging.getLogger('closebot.moderation')
 
 
-class ClosebanModal(Modal):
-    """Модалка для выдачи Closeban"""
+async def can_manage_bans(inter):
+    if not inter.guild:
+        return False
+    if inter.user.guild_permissions.manage_guild:
+        return True
+    config = await UsersDataBase().get_config_by_guild(inter.guild.id)
+    if not config:
+        return False
+    privileged = {int(config.get(key) or 0) for key in ('admin', 'role_otvechclosemod_id')}
+    if any(role.id in privileged for role in inter.user.roles):
+        return True
+    rows = await UsersDataBase().get_user(inter.user.id)
+    return bool(rows and int(rows[0][1]) == inter.user.id and int(rows[0][22]) == inter.guild.id and rows[0][13])
 
-    def __init__(self, target: int | None, guild_id: int, bot: commands.Bot):
-        self.target = target  # может быть id или 100 (ручной ввод)
-        self.guild_id = guild_id
-        self.bot = bot
 
-        # Базовые поля
-        components = [
-            TextInput(
-                label="Причина бана",
-                placeholder="например: нарушение правил",
-                custom_id="reason",
-                style=TextInputStyle.paragraph,
-            ),
-            TextInput(
-                label="Длительность бана",
-                placeholder="например: 1d или 1h",
-                custom_id="duration",
-                style=TextInputStyle.short,
-                max_length=50,
-            ),
+def duration_seconds(raw):
+    match = re.fullmatch(r'([1-9][0-9]{0,3})([hd])', raw.strip().lower())
+    if not match:
+        raise ValueError('Укажите срок, например 1h или 5d, от 1 часа до 365 дней.')
+    seconds = int(match[1]) * (3600 if match[2] == 'h' else 86400)
+    if seconds > 365 * 86400:
+        raise ValueError('Максимальный срок Closeban — 365 дней.')
+    return seconds
+
+
+class ClosebanModal(disnake.ui.Modal):
+    def __init__(self, target, guild_id, bot):
+        self.target, self.guild_id, self.bot = target, guild_id, bot
+        fields = [
+            disnake.ui.TextInput(label='Причина ограничения', custom_id='reason', style=disnake.TextInputStyle.paragraph, max_length=900),
+            disnake.ui.TextInput(label='Длительность: 1h или 5d', custom_id='duration', max_length=6),
         ]
+        if target == 100:
+            fields.insert(0, disnake.ui.TextInput(label='ID участника', custom_id='member_id', max_length=20))
+        super().__init__(title='Closeban', components=fields)
 
-        # Если нужно указать id вручную
-        if self.target == 100:
-            components.insert(
-                0,
-                TextInput(
-                    label="ID участника",
-                    placeholder="например: 100398248257278462819",
-                    custom_id="member_id",
-                    style=TextInputStyle.short,
-                    max_length=50,
-                ),
-            )
-
-        super().__init__(title="Укажите данные для Closeban", components=components)
-
-    async def callback(self, inter: disnake.ModalInteraction):
-        await inter.response.defer(with_message=False)
-
-        guild = self.bot.get_guild(self.guild_id)
-
-        # Если target == 100 → админ вводит ID вручную
-        if self.target == 100:
-            member_id = inter.text_values["member_id"]
-            if not member_id.isdigit():
-                await inter.send("❌ В ID должны быть только цифры", ephemeral=True)
-                return
-
-            member = guild.get_member(int(member_id))
-            if not member:
-                await inter.send("❌ Нет пользователя с таким ID на сервере", ephemeral=True)
-                return
-
-            self.target = member.id
-
-        duration_text = inter.text_values["duration"]
-
-        # Проверяем формат длительности
-        if not (duration_text[:-1].isdigit() and duration_text[-1] in ["h", "d"]):
-            await inter.send(
-                embed=disnake.Embed(
-                    title="Ошибка ввода данных",
-                    description=(
-                        "Введите корректное сообщение.\n\nПримеры:\n"
-                        "・ **5d** — 5 дней\n"
-                        "・ **1h** — 1 час\n"
-                        "・ причина бана: 1.1 или 1.3"
-                    ),
-                ),
-                ephemeral=True,
-            )
+    async def callback(self, inter):
+        if not inter.guild or inter.guild.id != self.guild_id or not await can_manage_bans(inter):
+            await inter.response.send_message('Недостаточно прав для Closeban на этом сервере.', ephemeral=True)
             return
-
-        # Проверка в базе (уже есть бан?)
-        existing_ban = await UsersDataBase().get_user_mut(self.target)
-        if existing_ban:
-            await inter.send("❌ Пользователь уже имеет Closeban!", ephemeral=True)
+        try:
+            seconds = duration_seconds(inter.text_values['duration'])
+            target_id = int(inter.text_values['member_id']) if self.target == 100 else int(self.target)
+        except (ValueError, KeyError, TypeError) as error:
+            await inter.response.send_message(str(error) if isinstance(error, ValueError) else 'Проверьте ID и срок ограничения.', ephemeral=True)
             return
-
-        # Преобразуем длительность
-        multiplier = 60 if duration_text[-1] == "h" else 1440
-        unit = "ч." if duration_text[-1] == "h" else "д."
-        duration_seconds = int(duration_text[:-1]) * multiplier * 60
-        end_time = time.time() + duration_seconds
-
-        # Логи
-        embed = disnake.Embed(title="Логи — Closeban")
-        embed.add_field(name="> Тип", value="```closeban```", inline=True)
-        for key, value in inter.text_values.items():
-            embed.add_field(name=f"> {key}", value=f"```\n{value[:1024]}```", inline=True)
-
-        embed.add_field(
-            name="> Исполнитель",
-            value=f"・ <@!{inter.user.id}>\n・ {inter.user.id}",
-            inline=True,
-        )
-        embed.add_field(
-            name="> Нарушитель",
-            value=f"・ <@!{self.target}>\n・ {self.target}",
-            inline=True,
-        )
-        conf = await UsersDataBase().get_config_by_guild(inter.guild.id)
-        log_channel = self.bot.get_channel(int(conf["log"]))
-        if log_channel:
-            await log_channel.send(embed=embed)
-
-        # Выдаём роль Closeban
-        role = guild.get_role(int(conf["closeban_id"]))
-        member = guild.get_member(self.target)
-
-        if role and member and role not in member.roles:
-            await member.add_roles(role)
-            await inter.send("✅ Вы выдали Closeban!", ephemeral=True)
-
-        # Записываем в базу
-        await UsersDataBase().add_user_mut(
-            member.id, guild.id, end_time, inter.text_values["reason"]
-        )
+        await inter.response.defer(ephemeral=True)
+        db = UsersDataBase()
+        config = await db.get_config_by_guild(self.guild_id)
+        role = inter.guild.get_role(int((config or {}).get('closeban_id') or 0))
+        member = inter.guild.get_member(target_id)
+        if role is None or member is None:
+            await inter.followup.send('Участник или роль Closeban не найдены. Проверьте /config.', ephemeral=True)
+            return
+        if member.bot or member.id == inter.guild.owner_id:
+            await inter.followup.send('Нельзя ограничить бота или владельца сервера.', ephemeral=True)
+            return
+        if await db.get_user_mut(target_id, self.guild_id):
+            await inter.followup.send('У участника уже есть активный Closeban.', ephemeral=True)
+            return
+        try:
+            await member.add_roles(role, reason=f'Closeban: {inter.text_values["reason"][:400]}')
+        except disnake.HTTPException:
+            await inter.followup.send('Не удалось выдать роль. Проверьте права и положение роли бота.', ephemeral=True)
+            return
+        try:
+            await db.add_user_mut(target_id, self.guild_id, int(time()) + seconds, inter.text_values['reason'])
+        except Exception:
+            # Do not leave a new restriction without an expiry record.
+            try:
+                await member.remove_roles(role, reason='Не удалось сохранить срок Closeban')
+            except disnake.HTTPException:
+                log.error('Manual role removal required: guild=%s user=%s', self.guild_id, target_id)
+            await inter.followup.send('Не удалось сохранить срок ограничения. Проверьте журнал бота.', ephemeral=True)
+            return
+        await inter.followup.send('Closeban выдан. По истечении срока роль будет снята автоматически.', ephemeral=True)
+        channel = inter.guild.get_channel(int(config.get('log') or 0))
+        if channel:
+            embed = disnake.Embed(title='Closeban выдан', description=inter.text_values['reason'], color=0xE6B675)
+            embed.add_field(name='Участник', value=f'<@{target_id}>')
+            embed.add_field(name='Срок', value=inter.text_values['duration'])
+            embed.set_footer(text='Close Bot · Geist-dev')
+            try:
+                await channel.send(embed=embed, allowed_mentions=disnake.AllowedMentions.none())
+            except disnake.HTTPException:
+                log.warning('Could not send moderation log for guild=%s', self.guild_id)
 
 
 class ClosebanCog(commands.Cog):
-    """Ког для работы с Closeban"""
-
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot):
         self.bot = bot
 
     async def open_closeban_modal(self, inter):
-        """Открыть модалку Closeban"""
-        target = 100
-        modal = ClosebanModal(target, inter.guild.id, self.bot)
-        await inter.response.send_modal(modal)
+        if not await can_manage_bans(inter):
+            await inter.response.send_message('Недостаточно прав для Closeban.', ephemeral=True)
+            return
+        await inter.response.send_modal(ClosebanModal(100, inter.guild.id, self.bot))
 
 
-def setup(bot: commands.Bot):
+def setup(bot):
     bot.add_cog(ClosebanCog(bot))

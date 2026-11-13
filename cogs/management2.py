@@ -37,7 +37,7 @@ class EventHandler(commands.Cog):
                 label="Запустить/завершить событие",
                 style=disnake.ButtonStyle.grey,
                 custom_id=f"событие_{inter.user.id}_{guild_id}_{rl_name}",
-                emoji="<:3_:1208208490745827338>",
+                emoji='🔹',
             )
         )
         view.add_item(
@@ -45,7 +45,7 @@ class EventHandler(commands.Cog):
                 label="Очистить список игроков",
                 style=disnake.ButtonStyle.grey,
                 custom_id=f"список_{inter.user.id}_{guild_id}_{rl_name}",
-                emoji="<:clear:1410716505879871608>",
+                emoji='🔹',
             )
         )
         view.add_item(
@@ -53,7 +53,7 @@ class EventHandler(commands.Cog):
                 label="Настроить всё с нуля",
                 style=disnake.ButtonStyle.grey,
                 custom_id=f"снуля_{inter.user.id}_{guild_id}_{rl_name}",
-                emoji="<:refresh:1410714424620355716>",
+                emoji='🔹',
             )
         )
         view.add_item(
@@ -61,7 +61,7 @@ class EventHandler(commands.Cog):
                 label="Поменять игроков местами",
                 style=disnake.ButtonStyle.grey,
                 custom_id=f"смена_{inter.user.id}_{guild_id}_{rl_name}",
-                emoji="<:swap:1234580111395917894>",
+                emoji='🔹',
             )
         )
         view.add_item(
@@ -70,7 +70,7 @@ class EventHandler(commands.Cog):
                 style=disnake.ButtonStyle.grey,
                 custom_id=f"пинг_{inter.user.id}_{guild_id}_{rl_name}",
                 disabled=True,
-                emoji='<:__:1208208236075819008>'
+                emoji='🔹'
             )
         )
 
