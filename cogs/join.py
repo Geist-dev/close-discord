@@ -30,10 +30,14 @@ class CloseRegistrationHandler(commands.Cog):
             await inter.send("Такой Close не найден!", ephemeral=True)
             return
 
+        if int(host_data[0][22]) != inter.guild.id or guild_id != inter.guild.id:
+            return await inter.send("Этот матч принадлежит другому серверу.", ephemeral=True)
+
         # Проверка на заполненность
         all_players = await user_db.get_user_vse(user_id)
         max_players = int(host_data[0][7].split('_')[1][0]) * 2
-        if (len(all_players) == max_players and host_data[0][9] == 1) or len(all_players) >= max_players + 1:
+        joining = not current_game or (inter.user.id == user_id and not host_data[0][9])
+        if joining and int(host_data[0][10]) >= max_players:
             await inter.send("Уже максимальное количество игроков записано!", ephemeral=True)
             return
 

@@ -2,7 +2,11 @@ import disnake
 from disnake.ext import commands
 from utils.databases import UsersDataBase
 class Close(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
     @commands.slash_command()
+    @commands.guild_only()
     async def close(self, inter):
         # Here you can paste some code, it will run for every invoked sub-command.
         pass
@@ -10,8 +14,11 @@ class Close(commands.Cog):
     @close.sub_command(description='Создание клоузов')
     async def create(self, inter):
         guild = await UsersDataBase().get_config_by_guild(inter.guild.id)
+        if not guild or not int(guild.get('role_closemod_id') or 0):
+            await inter.send('Сначала настройте бота командой /config.', ephemeral=True)
+            return
         role = inter.guild.get_role(int(guild['role_closemod_id']))
-        if role not in inter.user.roles:
+        if role not in inter.user.roles and not inter.user.guild_permissions.manage_guild:
             embed = disnake.Embed(
                 title="Создание клоза",
                 description=f"<@!{inter.user.id}>, для использования данной команды необходимы следующие роли: <@&{guild['role_closemod_id']}>",

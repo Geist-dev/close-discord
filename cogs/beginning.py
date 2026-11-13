@@ -30,7 +30,7 @@ class Closebegin(commands.Cog):
 
         embed = disnake.Embed(
             title=f"Управление клозом - {inter.user.name}",
-            description="<:__:1211092869276770315> - **подтвердить** настройки данного матча\n<:1_:1208208287598780477> - **отменить** данную игру",
+            description="• - **подтвердить** настройки данного матча\n• - **отменить** данную игру",
             color=disnake.Color.blurple(),
         )
 
@@ -47,10 +47,10 @@ class Closebegin(commands.Cog):
             view.add_item(SelectGames1(inter.user.id, inter.guild.id, self.bot))
         view.add_item(disnake.ui.Button(label="Подтвердить", style=disnake.ButtonStyle.grey,
                                         custom_id=f"подтвердить_{inter.user.id}_{guild_id}_{rl_name}",
-                                        emoji='<:__:1211092869276770315>'))
+                                        emoji='🔹'))
         view.add_item(disnake.ui.Button(label="Удалить матч", style=disnake.ButtonStyle.grey,
                                         custom_id=f"удалить_{inter.user.id}_{guild_id}",
-                                        emoji='<:1_:1208208287598780477>'))
+                                        emoji='🔹'))
 
         # Обновление сообщения
         try:
